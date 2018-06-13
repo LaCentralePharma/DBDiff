@@ -22,23 +22,26 @@ use DBDiff\SQLGen\Schema\SQL;
 
 use DBDiff\Logger;
 
-
-class TableSchema {
-
-    function __construct($manager) {
+class TableSchema
+{
+    public function __construct($manager)
+    {
         $this->manager = $manager;
         $this->source = $this->manager->getDB('source');
         $this->target = $this->manager->getDB('target');
     }
 
-    public function getSchema($connection, $table) {
+    public function getSchema($connection, $table)
+    {
         // collation & engine
         $status = $this->{$connection}->select("show table status like '$table'");
         $engine = $status[0]['Engine'];
         $collation = $status[0]['Collation'];
         
         $schema = $this->{$connection}->select("SHOW CREATE TABLE `$table`")[0]['Create Table'];
-        $lines = array_map(function($el) { return trim($el);}, explode("\n", $schema));
+        $lines = array_map(function ($el) {
+            return trim($el);
+        }, explode("\n", $schema));
         $lines = array_slice($lines, 1, -1);
         
         $columns = [];
@@ -51,10 +54,10 @@ class TableSchema {
             $line = trim($line, ',');
             if (starts_with($line, '`')) { // column
                 $columns[$name] = $line;
-            } else if (starts_with($line, 'CONSTRAINT')) { // constraint
+            } elseif (starts_with($line, 'CONSTRAINT')) { // constraint
                 $constraints[$name] = $line;
             } else { // keys
-                $keys[$name] = $line;
+                $keys[$name] = $this->normalizeKey($line);
             }
         }
 
@@ -67,7 +70,16 @@ class TableSchema {
         ];
     }
 
-    public function getDiff($table) {
+    private function normalizeKey($key)
+    {
+        if (!preg_match('/ USING [A-Za-z0-9]+$/', $key)) {
+            $key = $key . ' USING BTREE';
+        }
+        return $key;
+    }
+
+    public function getDiff($table)
+    {
         Logger::info("Now calculating schema diff for table `$table`");
         
         $diffSequence = [];
@@ -96,9 +108,9 @@ class TableSchema {
         foreach ($diffs as $column => $diff) {
             if ($diff instanceof \Diff\DiffOp\DiffOpRemove) {
                 $diffSequence[] = new AlterTableDropColumn($table, $column, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpChange) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpChange) {
                 $diffSequence[] = new AlterTableChangeColumn($table, $column, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
                 $diffSequence[] = new AlterTableAddColumn($table, $column, $diff);
             }
         }
@@ -111,9 +123,9 @@ class TableSchema {
         foreach ($diffs as $key => $diff) {
             if ($diff instanceof \Diff\DiffOp\DiffOpRemove) {
                 $diffSequence[] = new AlterTableDropKey($table, $key, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpChange) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpChange) {
                 $diffSequence[] = new AlterTableChangeKey($table, $key, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
                 $diffSequence[] = new AlterTableAddKey($table, $key, $diff);
             }
         }
@@ -126,14 +138,13 @@ class TableSchema {
         foreach ($diffs as $name => $diff) {
             if ($diff instanceof \Diff\DiffOp\DiffOpRemove) {
                 $diffSequence[] = new AlterTableDropConstraint($table, $name, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpChange) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpChange) {
                 $diffSequence[] = new AlterTableChangeConstraint($table, $name, $diff);
-            } else if ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
+            } elseif ($diff instanceof \Diff\DiffOp\DiffOpAdd) {
                 $diffSequence[] = new AlterTableAddConstraint($table, $name, $diff);
             }
         }
 
         return $diffSequence;
     }
-
 }

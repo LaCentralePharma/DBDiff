@@ -9,15 +9,15 @@ use DBDiff\Diff\DropTable;
 use DBDiff\Diff\AddTable;
 use DBDiff\Diff\AlterTable;
 
-
-
-class DBSchema {
-
-    function __construct($manager) {
+class DBSchema
+{
+    public function __construct($manager)
+    {
         $this->manager = $manager;
     }
     
-    function getDiff() {
+    public function getDiff()
+    {
         $params = ParamsFactory::get();
 
         $diffs = [];
@@ -26,6 +26,9 @@ class DBSchema {
         $dbName = $this->manager->getDB('target')->getDatabaseName();
         $sourceCollation = $this->getDBVariable('source', 'collation_database');
         $targetCollation = $this->getDBVariable('target', 'collation_database');
+
+        
+
         if ($sourceCollation !== $targetCollation) {
             $diffs[] = new SetDBCollation($dbName, $sourceCollation, $targetCollation);
         }
@@ -43,9 +46,16 @@ class DBSchema {
         $sourceTables = $this->manager->getTables('source');
         $targetTables = $this->manager->getTables('target');
 
+
+
+        if (isset($params->tablesToInclude)) {
+            $sourceTables = array_value_includes($sourceTables, $params->tablesToInclude);
+            $targetTables = array_value_includes($targetTables, $params->tablesToInclude);
+        }
+
         if (isset($params->tablesToIgnore)) {
-            $sourceTables = array_diff($sourceTables, $params->tablesToIgnore);
-            $targetTables = array_diff($targetTables, $params->tablesToIgnore);
+            $sourceTables = array_value_excludes($sourceTables, $params->tablesToIgnore);
+            $targetTables = array_value_excludes($targetTables, $params->tablesToIgnore);
         }
 
         $addedTables = array_diff($sourceTables, $targetTables);
@@ -67,9 +77,9 @@ class DBSchema {
         return $diffs;
     }
 
-    protected function getDBVariable($connection, $var) {
+    protected function getDBVariable($connection, $var)
+    {
         $result = $this->manager->getDB($connection)->select("show variables like '$var'");
         return $result[0]['Value'];
     }
-
 }
